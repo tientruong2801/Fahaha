@@ -6,7 +6,7 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const { login } = useAuth(); // Sử dụng login từ AuthContext
 
-  const [email, setEmail] = useState('');
+  const [emailOrUsername, setEmailOrUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -18,7 +18,7 @@ const LoginPage = () => {
 
     try {
       // Gọi hàm login từ AuthContext (nó sẽ tự động cập nhật state)
-      const user = await login(email, password);
+      const user = await login(emailOrUsername, password);
       console.log('Logged in user:', user);
 
       // Chỉ navigate khi login thành công (user !== false và user !== null)
@@ -64,8 +64,8 @@ const LoginPage = () => {
           </h2>
           <p className="text-blue-100 text-lg">
             Sử dụng tài khoản có trong database để đăng nhập:<br />
-            - <b>Admin:</b> do.f@fahasa.com / adminpass<br />
-            - <b>Khách:</b> nguyen.a@example.com / pass123
+            - <b>Admin:</b> staff_manager / adminpass<br />
+            - <b>Khách:</b> khachhang_A / pass123
           </p>
         </div>
         <div className="relative z-10 text-sm text-blue-200">© 2025 Fahaha Bookstore.</div>
@@ -82,14 +82,14 @@ const LoginPage = () => {
           <form className="mt-8 space-y-6" onSubmit={handleLogin}>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700">Email</label>
+                <label className="block text-sm font-medium text-slate-700">Email hoặc Tên đăng nhập</label>
                 <input
-                  type="email"
+                  type="text"
                   required
                   className="mt-1 block w-full rounded-lg border border-slate-300 py-2.5 px-3 text-slate-900 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  placeholder="do.f@fahasa.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="do.f@fahasa.com hoặc staff_manager"
+                  value={emailOrUsername}
+                  onChange={(e) => setEmailOrUsername(e.target.value)}
                 />
               </div>
 

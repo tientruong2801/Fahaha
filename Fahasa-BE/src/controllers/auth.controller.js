@@ -44,7 +44,7 @@ const authController = {
             if (!email || !password) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Email và mật khẩu không được để trống'
+                    message: 'Email/Tên đăng nhập và mật khẩu không được để trống'
                 });
             }
 

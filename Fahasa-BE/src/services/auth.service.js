@@ -51,14 +51,14 @@ const authService = {
         }
     },
 
-    // Đăng nhập
-    login: async (email, password) => {
+    // Đăng nhập - hỗ trợ cả email và username
+    login: async (emailOrUsername, password) => {
         try {
             const pool = await getConnection();
             const request = pool.request();
 
-            // Tìm user theo email
-            request.input('Email', sql.VarChar, email);
+            // Tìm user theo email HOẶC username
+            request.input('EmailOrUsername', sql.VarChar, emailOrUsername);
             const result = await request.query(`
         SELECT u.user_id, u.username, u.email, u.fname, u.lname,
                CASE 
@@ -70,11 +70,11 @@ const authService = {
         FROM Users u
         LEFT JOIN Staff s ON u.user_id = s.user_id
         LEFT JOIN Customer c ON u.user_id = c.user_id
-        WHERE u.email = @Email
+        WHERE u.email = @EmailOrUsername OR u.username = @EmailOrUsername
       `);
 
             if (result.recordset.length === 0) {
-                const error = new Error('Email hoặc mật khẩu không đúng');
+                const error = new Error('Email/Tên đăng nhập hoặc mật khẩu không đúng');
                 error.status = 401;
                 throw error;
             }
@@ -83,12 +83,12 @@ const authService = {
 
             // Kiểm tra password (trong thực tế nên dùng bcrypt)
             const passwordResult = await pool.request()
-                .input('Email', sql.VarChar, email)
+                .input('EmailOrUsername', sql.VarChar, emailOrUsername)
                 .input('Password', sql.VarChar, password)
-                .query('SELECT * FROM Users WHERE email = @Email AND password = @Password');
+                .query('SELECT * FROM Users WHERE (email = @EmailOrUsername OR username = @EmailOrUsername) AND password = @Password');
 
             if (passwordResult.recordset.length === 0) {
-                const error = new Error('Email hoặc mật khẩu không đúng');
+                const error = new Error('Email/Tên đăng nhập hoặc mật khẩu không đúng');
                 error.status = 401;
                 throw error;
             }
