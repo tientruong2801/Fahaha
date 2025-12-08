@@ -14,7 +14,7 @@ const ProductForm = ({ show, handleClose, handleSubmit, initialData, isEdit }) =
         price: '',
         stock_quantity: '',
         weight: 0,
-        size: 'M'
+        size: ''
     });
 
     useEffect(() => {
@@ -33,7 +33,7 @@ const ProductForm = ({ show, handleClose, handleSubmit, initialData, isEdit }) =
                 price: '',
                 stock_quantity: '',
                 weight: 0,
-                size: 'M'
+                size: ''
             });
         }
     }, [show, initialData]);

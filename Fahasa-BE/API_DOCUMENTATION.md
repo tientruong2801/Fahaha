@@ -7,14 +7,92 @@ Base URL: `http://localhost:3000`
 2. [Product APIs](#product-apis)
 3. [Category APIs](#category-apis)
 4. [Cart APIs](#cart-apis)
-5. [User APIs](#user-apis)
-6. [Report APIs](#report-apis)
+5. [Order APIs](#order-apis)
+6. [User APIs](#user-apis)
+7. [Report APIs](#report-apis)
+
+---
+
+## 📊 Quick Reference
+
+| Module | Endpoints | Mô tả |
+|--------|-----------|-------|
+| **Auth** | 4 endpoints | Đăng ký, đăng nhập, xác thực token, lấy thông tin user |
+| **Products** | 5 endpoints | CRUD sản phẩm, tìm kiếm, phân trang |
+| **Categories** | 3 endpoints | Lấy danh mục, sản phẩm theo danh mục |
+| **Cart** | 5 endpoints | Quản lý giỏ hàng (thêm, xóa, cập nhật, xóa hết) |
+| **Orders** | 4 endpoints | Tạo đơn, xem đơn, chi tiết đơn, hủy đơn |
+| **Users** | 5 endpoints | CRUD users (placeholder) |
+| **Reports** | 4 endpoints | Báo cáo bán hàng, doanh thu, chi tiêu, nhập hàng |
+
+**Tổng cộng:** 30+ API endpoints
 
 ---
 
 ## 🔐 Authentication APIs
 
-### 1. Đăng nhập
+### 1. Đăng ký
+**POST** `/api/auth/register`
+
+**Request Body:**
+```json
+{
+  "username": "newuser123",
+  "email": "newuser@gmail.com",
+  "password": "password123",
+  "fname": "Nguyễn Văn",
+  "lname": "B",
+  "phone": "0123456789"
+}
+```
+
+**Response Success (201):**
+```json
+{
+  "success": true,
+  "message": "Đăng ký thành công",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "user_id": 105,
+    "username": "newuser123",
+    "email": "newuser@gmail.com",
+    "fname": "Nguyễn Văn",
+    "lname": "B",
+    "role": "customer",
+    "is_admin": 0
+  }
+}
+```
+
+**Response Error (400):**
+```json
+{
+  "success": false,
+  "message": "Vui lòng điền đầy đủ thông tin bắt buộc"
+}
+```
+
+**Response Error (500):**
+```json
+{
+  "success": false,
+  "message": "Email đã tồn tại" // hoặc lỗi khác
+}
+```
+
+**Cách sử dụng:**
+```javascript
+const response = await fetch('http://localhost:3000/api/auth/register', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ username, email, password, fname, lname, phone })
+});
+const data = await response.json();
+// Lưu token vào localStorage
+localStorage.setItem('token', data.token);
+```
+
+### 2. Đăng nhập
 **POST** `/api/auth/login`
 
 **Request Body:**
@@ -71,7 +149,7 @@ const data = await response.json();
 localStorage.setItem('token', data.token);
 ```
 
-### 2. Xác thực token
+### 3. Xác thực token
 **GET** `/api/auth/verify`
 
 **Headers:** 
@@ -92,7 +170,7 @@ Authorization: Bearer <token>
 }
 ```
 
-### 3. Lấy thông tin user hiện tại
+### 4. Lấy thông tin user hiện tại
 **GET** `/api/auth/me`
 
 **Headers:** 
@@ -603,10 +681,15 @@ const handleRemove = async (productId) => {
 ```
 
 ### 5. Xóa toàn bộ giỏ hàng
-**DELETE** `/api/cart?userId=101`
+**DELETE** `/api/cart/clear`
+
+**Headers (optional):**
+```
+Authorization: Bearer <token>
+```
 
 **Query Parameters:**
-- `userId` (optional): ID của user (mặc định: 1)
+- `userId` (optional): ID của user (nếu không có token, mặc định: 101)
 
 **Response Success (200):**
 ```json
@@ -616,6 +699,298 @@ const handleRemove = async (productId) => {
   "data": null
 }
 ```
+
+**Cách sử dụng:**
+```javascript
+const clearCart = async () => {
+  const token = localStorage.getItem('token');
+  const response = await fetch('http://localhost:3000/api/cart/clear', {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  const result = await response.json();
+  if (result.success) {
+    alert('Đã xóa toàn bộ giỏ hàng');
+    fetchCart(); // Refresh cart
+  }
+};
+```
+
+---
+
+## 📦 Order APIs
+
+⚠️ **Lưu ý:** Order APIs sử dụng optional authentication. UserId sẽ được lấy từ token nếu có, hoặc từ query params/body nếu không.
+
+### 1. Tạo đơn hàng từ giỏ hàng
+**POST** `/api/orders`
+
+**Headers (optional):**
+```
+Authorization: Bearer <token>
+```
+
+**Request Body:**
+```json
+{
+  "payment_method": "COD",
+  "shipping_fee": 30000,
+  "note": "Giao hàng vào buổi sáng",
+  "point_used": 0
+}
+```
+
+**Tất cả các trường đều optional:**
+- `payment_method`: Phương thức thanh toán (mặc định: "COD")
+- `shipping_fee`: Phí giao hàng (mặc định: 30000)
+- `note`: Ghi chú cho đơn hàng
+- `point_used`: Số điểm tích lũy sử dụng (mặc định: 0)
+
+**Response Success (201):**
+```json
+{
+  "success": true,
+  "message": "Order created successfully",
+  "data": {
+    "order_id": 1,
+    "payment_id": 1,
+    "total": 150000,
+    "point_earned": 15,
+    "status": "Pending"
+  }
+}
+```
+
+**Response Error (400):**
+```json
+{
+  "success": false,
+  "message": "Giỏ hàng trống"
+}
+```
+
+**Business Logic:**
+- Kiểm tra giỏ hàng không rỗng
+- Kiểm tra số lượng tồn kho
+- Tính toán tổng tiền và điểm tích lũy (1 điểm/10,000 VND)
+- Tạo bản ghi Payment và Orders
+- Chuyển sản phẩm từ giỏ hàng sang Order_Product
+- Cập nhật tồn kho sản phẩm
+- Cập nhật điểm tích lũy khách hàng
+- Xóa giỏ hàng sau khi đặt hàng thành công
+
+**Cách sử dụng:**
+```javascript
+const createOrder = async () => {
+  const token = localStorage.getItem('token');
+  const response = await fetch('http://localhost:3000/api/orders', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}` // optional
+    },
+    body: JSON.stringify({
+      payment_method: 'COD',
+      shipping_fee: 30000,
+      note: 'Giao hàng vào buổi sáng'
+    })
+  });
+  const result = await response.json();
+  if (result.success) {
+    alert('Đặt hàng thành công!');
+  }
+};
+```
+
+### 2. Lấy danh sách đơn hàng
+**GET** `/api/orders`
+
+**Headers (optional):**
+```
+Authorization: Bearer <token>
+```
+
+**Query Parameters:**
+- `userId` (optional): ID của user (nếu không có token)
+
+**Response Success (200):**
+```json
+{
+  "success": true,
+  "message": "Orders retrieved successfully",
+  "data": [
+    {
+      "order_id": 1,
+      "created_date": "2025-12-08",
+      "status": "Pending",
+      "total": 150000,
+      "shipping_fee": 30000,
+      "payment_method": "COD",
+      "total_items": 3
+    },
+    {
+      "order_id": 2,
+      "created_date": "2025-12-07",
+      "status": "Cancelled",
+      "total": 200000,
+      "shipping_fee": 30000,
+      "payment_method": "COD",
+      "total_items": 2
+    }
+  ]
+}
+```
+
+**Cách sử dụng:**
+```javascript
+const fetchOrders = async () => {
+  const token = localStorage.getItem('token');
+  const response = await fetch('http://localhost:3000/api/orders', {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  const result = await response.json();
+  if (result.success) {
+    setOrders(result.data);
+  }
+};
+```
+
+### 3. Lấy chi tiết đơn hàng
+**GET** `/api/orders/:orderId`
+
+**Headers (optional):**
+```
+Authorization: Bearer <token>
+```
+
+**URL Parameters:**
+- `orderId`: ID của đơn hàng
+
+**Response Success (200):**
+```json
+{
+  "success": true,
+  "message": "Order retrieved successfully",
+  "data": {
+    "order_id": 1,
+    "created_date": "2025-12-08",
+    "status": "Pending",
+    "total": 150000,
+    "shipping_fee": 30000,
+    "point_earned": 15,
+    "point_used": 0,
+    "note": "Giao hàng vào buổi sáng",
+    "payment_method": "COD",
+    "products": [
+      {
+        "product_id": 1,
+        "product_name": "Đắc Nhân Tâm",
+        "price": 100000,
+        "quantity": 1,
+        "subtotal": 100000,
+        "image_url": "image_url/product1/main1.jpg"
+      },
+      {
+        "product_id": 5,
+        "product_name": "Nhà Giả Kim",
+        "price": 50000,
+        "quantity": 1,
+        "subtotal": 50000,
+        "image_url": "image_url/product5/main1.jpg"
+      }
+    ]
+  }
+}
+```
+
+**Response Error (404):**
+```json
+{
+  "success": false,
+  "message": "Order not found"
+}
+```
+
+**Cách sử dụng:**
+```javascript
+const fetchOrderDetail = async (orderId) => {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`http://localhost:3000/api/orders/${orderId}`, {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  const result = await response.json();
+  if (result.success) {
+    setOrderDetail(result.data);
+  }
+};
+```
+
+### 4. Hủy đơn hàng
+**PUT** `/api/orders/:orderId/cancel`
+
+**Headers (optional):**
+```
+Authorization: Bearer <token>
+```
+
+**URL Parameters:**
+- `orderId`: ID của đơn hàng cần hủy
+
+**Response Success (200):**
+```json
+{
+  "success": true,
+  "message": "Order cancelled successfully"
+}
+```
+
+**Response Error (400):**
+```json
+{
+  "success": false,
+  "message": "Cannot cancel order in current status"
+}
+```
+
+**Response Error (404):**
+```json
+{
+  "success": false,
+  "message": "Order not found"
+}
+```
+
+**Cách sử dụng:**
+```javascript
+const cancelOrder = async (orderId) => {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`http://localhost:3000/api/orders/${orderId}/cancel`, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  const result = await response.json();
+  if (result.success) {
+    alert('Đã hủy đơn hàng');
+    fetchOrders(); // Refresh danh sách
+  }
+};
+```
+
+### Order Statuses
+
+- `Pending`: Đơn hàng mới tạo, chờ xử lý
+- `Cancelled`: Đơn hàng đã hủy
+- `Processing`: Đang xử lý (có thể mở rộng)
+- `Shipped`: Đã giao hàng (có thể mở rộng)
+- `Delivered`: Đã nhận hàng (có thể mở rộng)
 
 ---
 
@@ -981,9 +1356,16 @@ DB_NAME=fahasa
 
 6. **Database connection:** Đảm bảo SQL Server đang chạy và database `fahasa` đã được tạo.
 
-7. **Cart APIs:** Hiện tại chưa tích hợp đầy đủ authentication. userId được truyền qua query params hoặc body. Cần refactor để lấy từ token trong production.
+7. **Cart & Order APIs:** Sử dụng optional authentication. UserId được lấy từ token nếu có, hoặc từ query params/body nếu không.
 
 8. **User APIs:** Các endpoints ở `/api/users` hiện tại chỉ là placeholder và chưa có logic thực tế.
+
+9. **Order System:** 
+   - Hệ thống tự động tính điểm tích lũy: 1 điểm cho mỗi 10,000 VND
+   - Phí giao hàng mặc định là 30,000 VND
+   - Phương thức thanh toán mặc định là COD (Cash on Delivery)
+   - Sau khi tạo đơn hàng thành công, giỏ hàng sẽ được xóa tự động
+   - Số lượng tồn kho được cập nhật ngay khi tạo đơn hàng
 
 ---
 
@@ -1003,9 +1385,32 @@ Server sẽ chạy tại: `http://localhost:3000`
 
 ## 📝 Changelog
 
+### Version 2.0.0 (2025-12-08)
+- ✅ Hoàn thiện toàn bộ API documentation
+- ✅ Thêm Order APIs (create, get all, get detail, cancel)
+- ✅ Thêm Register API
+- ✅ Cập nhật Cart APIs với optional authentication
+- ✅ Bổ sung examples và business logic cho Order APIs
+- ✅ Merge ORDER_API_DOCUMENTATION.md vào file chính
+- ✅ Cập nhật response format và error handling cho tất cả APIs
+
 ### Version 1.0.0
 - Hoàn thiện APIs cho Authentication, Product, Category, Cart, và Report
 - Thêm response format chuẩn với `success`, `message`, `data`
 - Tích hợp JWT authentication cho Auth APIs
 - Hỗ trợ pagination và search cho Product APIs
 - Thêm các stored procedures cho Report APIs
+
+---
+
+## 📚 API Summary
+
+Tổng số APIs đã implement: **30+ endpoints**
+
+- **Authentication (4):** register, login, verify, get current user
+- **Products (5):** get all, get by id, create, update, delete
+- **Categories (3):** get all, get by id, get products by category
+- **Cart (5):** get cart, add to cart, remove from cart, update quantity, clear cart
+- **Orders (4):** create order, get all orders, get order detail, cancel order
+- **Users (5):** get all, get by id, create, update, delete (placeholder)
+- **Reports (4):** top selling products, monthly revenue, customer spending, restock cost
