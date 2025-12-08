@@ -120,13 +120,23 @@ const CartPage = () => {
   };
 
   // Loading state
-  if (loading) {
+  if (loading && cartItems.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
           <iconify-icon icon="lucide:loader-2" width="48" class="text-blue-600 animate-spin"></iconify-icon>
           <p className="mt-4 text-slate-600">Đang tải giỏ hàng...</p>
         </div>
+      </div>
+    );
+  }
+
+  // Loading state - only show when no data yet
+  if (loading && cartItems.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <iconify-icon icon="lucide:loader-2" width="48" class="text-blue-600 animate-spin"></iconify-icon>
+        <p className="text-slate-500 text-lg font-medium">Đang tải giỏ hàng...</p>
       </div>
     );
   }
