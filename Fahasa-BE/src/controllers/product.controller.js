@@ -5,12 +5,13 @@ class ProductController {
     // GET /api/products - Lấy danh sách sản phẩm
     async getAll(req, res) {
         try {
-            const { page = 1, limit = 10, search = '' } = req.query;
-            console.log('Get all products with params:', { page, limit, search });
+            const { page = 1, limit = 10, search = '', categoryId = null } = req.query;
+            console.log('Get all products with params:', { page, limit, search, categoryId });
             const result = await productService.getAllProducts(
                 parseInt(page),
                 parseInt(limit),
-                search
+                search,
+                categoryId
             );
 
             // Trả về format phù hợp với frontend

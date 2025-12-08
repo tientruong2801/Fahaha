@@ -2,9 +2,9 @@ const Product = require('../models/product.model');
 
 class ProductService {
     // Lấy danh sách sản phẩm
-    async getAllProducts(page, limit, search) {
+    async getAllProducts(page, limit, search, categoryId = null) {
         try {
-            return await Product.getAll(page, limit, search);
+            return await Product.getAll(page, limit, search, categoryId);
         } catch (error) {
             throw error;
         }

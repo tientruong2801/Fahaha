@@ -17,8 +17,8 @@ class Product {
         this.size = product.size;
     }
 
-    // Lấy tất cả sản phẩm với phân trang và tìm kiếm
-    static async getAll(page = 1, limit = 10, search = '') {
+    // Lấy tất cả sản phẩm với phân trang, tìm kiếm và lọc theo category
+    static async getAll(page = 1, limit = 10, search = '', categoryId = null) {
         try {
             const pool = await db.getConnection();
             const offset = (page - 1) * limit;
@@ -49,8 +49,23 @@ class Product {
         FROM Product p
       `;
 
+            // Add category filter if provided
+            if (categoryId) {
+                query += ` INNER JOIN Category_Product cp ON p.product_id = cp.product_id`;
+            }
+
+            let whereConditions = [];
+            
             if (search) {
-                query += ` WHERE p.title LIKE @search OR p.publisher LIKE @search OR p.supplier LIKE @search`;
+                whereConditions.push(`(p.title LIKE @search OR p.publisher LIKE @search OR p.supplier LIKE @search)`);
+            }
+
+            if (categoryId) {
+                whereConditions.push(`cp.category_id = @categoryId`);
+            }
+
+            if (whereConditions.length > 0) {
+                query += ` WHERE ` + whereConditions.join(' AND ');
             }
 
             query += `
@@ -67,17 +82,37 @@ class Product {
                 request.input('search', sql.NVarChar, `%${search}%`);
             }
 
+            if (categoryId) {
+                request.input('categoryId', sql.Int, parseInt(categoryId));
+            }
+
             const result = await request.query(query);
 
             // Đếm tổng số sản phẩm
-            let countQuery = `SELECT COUNT(*) as total FROM Product`;
+            let countQuery = `SELECT COUNT(DISTINCT p.product_id) as total FROM Product p`;
+            
+            if (categoryId) {
+                countQuery += ` INNER JOIN Category_Product cp ON p.product_id = cp.product_id`;
+            }
+
+            let countWhereConditions = [];
             if (search) {
-                countQuery += ` WHERE title LIKE @search OR publisher LIKE @search OR supplier LIKE @search`;
+                countWhereConditions.push(`(p.title LIKE @search OR p.publisher LIKE @search OR p.supplier LIKE @search)`);
+            }
+            if (categoryId) {
+                countWhereConditions.push(`cp.category_id = @categoryId`);
+            }
+
+            if (countWhereConditions.length > 0) {
+                countQuery += ` WHERE ` + countWhereConditions.join(' AND ');
             }
 
             const countRequest = pool.request();
             if (search) {
                 countRequest.input('search', sql.NVarChar, `%${search}%`);
+            }
+            if (categoryId) {
+                countRequest.input('categoryId', sql.Int, parseInt(categoryId));
             }
 
             const countResult = await countRequest.query(countQuery);

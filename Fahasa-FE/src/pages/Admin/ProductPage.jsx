@@ -2,16 +2,19 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import productApi from '../../api/productApi';
+import categoryApi from '../../api/categoryApi';
 import ProductCard from '../../components/Admin/ProductCard';
 import ProductForm from '../../components/Admin/ProductForm';
 import ConfirmDelete from '../../components/ConfirmDelete';
 
 const ProductPage = () => {
     const [products, setProducts] = useState([]);
+    const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(0);
     const [searchText, setSearchText] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState('');
 
     const [showForm, setShowForm] = useState(false);
     const [isEdit, setIsEdit] = useState(false);
@@ -19,14 +22,33 @@ const ProductPage = () => {
     const [showConfirm, setShowConfirm] = useState(false);
     const [deleteId, setDeleteId] = useState(null);
 
+    // Fetch categories on mount
+    useEffect(() => {
+        const fetchCategories = async () => {
+            try {
+                const response = await categoryApi.getAll();
+                setCategories(response.data.data || []);
+            } catch (error) {
+                console.error('Error fetching categories:', error);
+            }
+        };
+        fetchCategories();
+    }, []);
+
     const fetchProducts = async (page) => {
         setLoading(true);
         try {
-            const response = await productApi.getAll({
+            const params = {
                 page: page,
                 limit: 8,
                 search: searchText
-            });
+            };
+
+            if (selectedCategory) {
+                params.categoryId = selectedCategory;
+            }
+
+            const response = await productApi.getAll(params);
 
             setProducts(response.data.data);
             setTotalPages(response.data.pagination.totalPages);
@@ -39,7 +61,7 @@ const ProductPage = () => {
         }
     };
 
-    useEffect(() => { fetchProducts(currentPage); }, [currentPage]);
+    useEffect(() => { fetchProducts(currentPage); }, [currentPage, selectedCategory]);
 
     const handleSearch = () => { setCurrentPage(1); fetchProducts(1); };
 
@@ -99,6 +121,23 @@ const ProductPage = () => {
 
                         {/* Right: Search and Actions */}
                         <div className="flex items-center gap-3">
+                            {/* Category Filter */}
+                            <select
+                                value={selectedCategory}
+                                onChange={(e) => {
+                                    setSelectedCategory(e.target.value);
+                                    setCurrentPage(1);
+                                }}
+                                className="px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white"
+                            >
+                                <option value="">Tất cả danh mục</option>
+                                {categories.map((cat) => (
+                                    <option key={cat.category_id} value={cat.category_id}>
+                                        {cat.category_name}
+                                    </option>
+                                ))}
+                            </select>
+
                             <div className="relative">
                                 <input
                                     type="text"
@@ -134,6 +173,12 @@ const ProductPage = () => {
                             {searchText ? (
                                 <>
                                     Kết quả tìm kiếm: <span className="text-blue-600">"{searchText}"</span>
+                                </>
+                            ) : selectedCategory ? (
+                                <>
+                                    Danh mục: <span className="text-blue-600">
+                                        {categories.find(c => c.category_id == selectedCategory)?.category_name}
+                                    </span>
                                 </>
                             ) : (
                                 'Danh sách sản phẩm'

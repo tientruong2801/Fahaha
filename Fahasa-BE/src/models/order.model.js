@@ -185,32 +185,87 @@ class OrderModel {
     // Update order status
     static async updateOrderStatus(orderId, customerId, status) {
         const pool = await getConnection();
+        const transaction = new sql.Transaction(pool);
 
-        // Verify order belongs to customer
-        const verifyResult = await pool.request()
-            .input('order_id', sql.Int, orderId)
-            .input('customer_id', sql.Int, customerId)
-            .query(`
-                SELECT o.order_id
-                FROM Orders o
-                INNER JOIN Payment p ON o.payment_id = p.payment_id
-                WHERE o.order_id = @order_id AND p.customer_id = @customer_id
-            `);
+        try {
+            await transaction.begin();
 
-        if (verifyResult.recordset.length === 0) {
-            return null;
+            // Verify order belongs to customer and get current status
+            const verifyResult = await transaction.request()
+                .input('order_id', sql.Int, orderId)
+                .input('customer_id', sql.Int, customerId)
+                .query(`
+                    SELECT o.order_id, o.status, o.point_earned, o.point_used
+                    FROM Orders o
+                    INNER JOIN Payment p ON o.payment_id = p.payment_id
+                    WHERE o.order_id = @order_id AND p.customer_id = @customer_id
+                `);
+
+            if (verifyResult.recordset.length === 0) {
+                await transaction.rollback();
+                return null;
+            }
+
+            const currentOrder = verifyResult.recordset[0];
+
+            // Check if order can be cancelled
+            if (status === 'Cancelled' && currentOrder.status === 'Cancelled') {
+                await transaction.rollback();
+                return null; // Already cancelled
+            }
+
+            // If cancelling, restore product stock and customer points
+            if (status === 'Cancelled' && currentOrder.status !== 'Cancelled') {
+                // Get order products
+                const productsResult = await transaction.request()
+                    .input('order_id', sql.Int, orderId)
+                    .query(`
+                        SELECT product_id, quantity
+                        FROM Order_Product
+                        WHERE order_id = @order_id
+                    `);
+
+                // Restore stock for each product
+                for (const item of productsResult.recordset) {
+                    await transaction.request()
+                        .input('product_id', sql.Int, item.product_id)
+                        .input('quantity', sql.Int, item.quantity)
+                        .query(`
+                            UPDATE Product
+                            SET stock_quantity = stock_quantity + @quantity
+                            WHERE product_id = @product_id
+                        `);
+                }
+
+                // Restore customer points (deduct earned points, refund used points)
+                await transaction.request()
+                    .input('customer_id', sql.Int, customerId)
+                    .input('point_earned', sql.Int, currentOrder.point_earned || 0)
+                    .input('point_used', sql.Int, currentOrder.point_used || 0)
+                    .query(`
+                        UPDATE Customer
+                        SET total_fpoint = total_fpoint - @point_earned + @point_used
+                        WHERE user_id = @customer_id
+                    `);
+            }
+
+            // Update order status
+            const result = await transaction.request()
+                .input('order_id', sql.Int, orderId)
+                .input('status', sql.VarChar(50), status)
+                .query(`
+                    UPDATE Orders
+                    SET status = @status
+                    WHERE order_id = @order_id
+                `);
+
+            await transaction.commit();
+            return result.rowsAffected[0] > 0;
+
+        } catch (error) {
+            await transaction.rollback();
+            throw error;
         }
-
-        const result = await pool.request()
-            .input('order_id', sql.Int, orderId)
-            .input('status', sql.VarChar(50), status)
-            .query(`
-                UPDATE Orders
-                SET status = @status
-                WHERE order_id = @order_id
-            `);
-
-        return result.rowsAffected[0] > 0;
     }
 }
 
