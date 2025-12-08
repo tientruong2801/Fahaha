@@ -19,8 +19,10 @@ const LoginPage = () => {
     try {
       // Gọi hàm login từ AuthContext (nó sẽ tự động cập nhật state)
       const user = await login(email, password);
+      console.log('Logged in user:', user);
 
-      if (user) {
+      // Chỉ navigate khi login thành công (user !== false và user !== null)
+      if (user && typeof user === 'object') {
         // Điều hướng dựa theo role
         if (user.role === 'admin' || user.is_admin) {
           // Admin -> trang quản lý sản phẩm

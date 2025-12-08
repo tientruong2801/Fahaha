@@ -55,7 +55,7 @@ class Product {
             }
 
             let whereConditions = [];
-            
+
             if (search) {
                 whereConditions.push(`(p.title LIKE @search OR p.publisher LIKE @search OR p.supplier LIKE @search)`);
             }
@@ -90,7 +90,7 @@ class Product {
 
             // Đếm tổng số sản phẩm
             let countQuery = `SELECT COUNT(DISTINCT p.product_id) as total FROM Product p`;
-            
+
             if (categoryId) {
                 countQuery += ` INNER JOIN Category_Product cp ON p.product_id = cp.product_id`;
             }
@@ -252,10 +252,64 @@ class Product {
     static async delete(id) {
         try {
             const pool = await db.getConnection();
-            const request = pool.request();
 
-            request.input('ProductID', sql.Int, id);
-            await request.execute('sp_DeleteProduct');
+            // Kiểm tra sản phẩm tồn tại
+            const checkProduct = await pool.request()
+                .input('id', sql.Int, id)
+                .query('SELECT product_id FROM Product WHERE product_id = @id');
+
+            if (checkProduct.recordset.length === 0) {
+                throw new Error('Sản phẩm không tồn tại');
+            }
+
+            // Kiểm tra sản phẩm có trong đơn hàng không
+            const checkOrder = await pool.request()
+                .input('id', sql.Int, id)
+                .query('SELECT 1 FROM Order_Product WHERE product_id = @id');
+
+            if (checkOrder.recordset.length > 0) {
+                throw new Error('Không thể xóa sản phẩm vì đã có đơn hàng liên quan. Sản phẩm này đã được bán.');
+            }
+
+            // Kiểm tra sản phẩm có trong giỏ hàng không
+            const checkCart = await pool.request()
+                .input('id', sql.Int, id)
+                .query('SELECT 1 FROM Cart_Product WHERE product_id = @id');
+
+            if (checkCart.recordset.length > 0) {
+                throw new Error('Không thể xóa sản phẩm vì có trong giỏ hàng.');
+            }
+
+            // Kiểm tra sản phẩm có trong flash sale không
+            const checkFlashSale = await pool.request()
+                .input('id', sql.Int, id)
+                .query('SELECT 1 FROM Flashsale_Product WHERE product_id = @id');
+
+            if (checkFlashSale.recordset.length > 0) {
+                throw new Error('Không thể xóa sản phẩm vì có trong chương trình flash sale.');
+            }
+
+            // Xóa các bảng liên quan
+            await pool.request()
+                .input('id', sql.Int, id)
+                .query('DELETE FROM Product_Image WHERE product_id = @id');
+
+            await pool.request()
+                .input('id', sql.Int, id)
+                .query('DELETE FROM ProductReview WHERE product_id = @id');
+
+            await pool.request()
+                .input('id', sql.Int, id)
+                .query('DELETE FROM Author_of_product WHERE product_id = @id');
+
+            await pool.request()
+                .input('id', sql.Int, id)
+                .query('DELETE FROM Category_Product WHERE product_id = @id');
+
+            // Xóa sản phẩm
+            await pool.request()
+                .input('id', sql.Int, id)
+                .query('DELETE FROM Product WHERE product_id = @id');
 
             return true;
         } catch (error) {

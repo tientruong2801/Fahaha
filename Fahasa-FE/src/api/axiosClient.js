@@ -28,13 +28,19 @@ axiosClient.interceptors.response.use(
     },
     (error) => {
         if (error.response?.status === 401) {
-            // Token hết hạn hoặc không hợp lệ
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            // Redirect to home nếu cần
-            if (window.location.pathname !== '/') {
-                window.location.href = '/';
+            // Chỉ xử lý auto-logout nếu KHÔNG phải đang ở trang login/register
+            const isAuthPage = window.location.pathname === '/login' ||
+                window.location.pathname === '/register' ||
+                window.location.pathname === '/';
+
+            if (!isAuthPage) {
+                // Token hết hạn hoặc không hợp lệ - chỉ logout khi đang authenticated
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                // Redirect to login
+                window.location.href = '/login';
             }
+            // Nếu đang ở trang login, để error được throw và xử lý ở component
         }
         return Promise.reject(error);
     }

@@ -73,10 +73,16 @@ export const AuthProvider = ({ children }) => {
         return data.user;
       }
 
-      return false;
+      // Nếu không có token hoặc user, throw error
+      throw new Error("Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin!");
     } catch (err) {
-      const message = err.response?.data?.message || "Đăng nhập thất bại!";
+      const message = err.response?.data?.message || err.message || "Email hoặc mật khẩu không đúng!";
       console.error("Login error:", err);
+
+      // Đảm bảo không có dữ liệu cũ
+      setUser(null);
+      setIsLoggedIn(false);
+
       throw new Error(message);
     }
   };
