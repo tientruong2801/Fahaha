@@ -1,0 +1,232 @@
+const { sql } = require('../config/database');
+const db = require('../config/database');
+
+class Product {
+    constructor(product) {
+        this.product_id = product.product_id;
+        this.title = product.title;
+        this.publisher = product.publisher;
+        this.supplier = product.supplier;
+        this.description = product.description;
+        this.year = product.year;
+        this.language = product.language;
+        this.product_type = product.product_type;
+        this.stock_quantity = product.stock_quantity;
+        this.price = product.price;
+        this.weight = product.weight;
+        this.size = product.size;
+    }
+
+    // Lấy tất cả sản phẩm với phân trang và tìm kiếm
+    static async getAll(page = 1, limit = 10, search = '') {
+        try {
+            const pool = await db.getConnection();
+            const offset = (page - 1) * limit;
+
+            let query = `
+        SELECT DISTINCT
+          p.product_id,
+          p.title,
+          p.publisher,
+          p.supplier,
+          p.description,
+          p.year,
+          p.language,
+          p.product_type,
+          p.stock_quantity,
+          p.price,
+          p.weight,
+          p.size,
+          COALESCE(
+            (
+              SELECT STRING_AGG(c.category_name, ', ') 
+              FROM Category_Product cp
+              INNER JOIN Category c ON cp.category_id = c.category_id
+              WHERE cp.product_id = p.product_id
+            ),
+            N'Khác'
+          ) as categories
+        FROM Product p
+      `;
+
+            if (search) {
+                query += ` WHERE p.title LIKE @search OR p.publisher LIKE @search OR p.supplier LIKE @search`;
+            }
+
+            query += `
+        ORDER BY p.product_id DESC
+        OFFSET @offset ROWS
+        FETCH NEXT @limit ROWS ONLY
+      `;
+
+            const request = pool.request();
+            request.input('offset', sql.Int, offset);
+            request.input('limit', sql.Int, limit);
+
+            if (search) {
+                request.input('search', sql.NVarChar, `%${search}%`);
+            }
+
+            const result = await request.query(query);
+
+            // Đếm tổng số sản phẩm
+            let countQuery = `SELECT COUNT(*) as total FROM Product`;
+            if (search) {
+                countQuery += ` WHERE title LIKE @search OR publisher LIKE @search OR supplier LIKE @search`;
+            }
+
+            const countRequest = pool.request();
+            if (search) {
+                countRequest.input('search', sql.NVarChar, `%${search}%`);
+            }
+
+            const countResult = await countRequest.query(countQuery);
+            const total = countResult.recordset[0].total;
+
+            return {
+                data: result.recordset,
+                pagination: {
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    total: total,
+                    totalPages: Math.ceil(total / limit)
+                }
+            };
+        } catch (error) {
+            throw error;
+        }
+    }
+
+    // Lấy sản phẩm theo ID
+    static async getById(id) {
+        try {
+            const pool = await db.getConnection();
+
+            const query = `
+        SELECT 
+          p.product_id,
+          p.title,
+          p.publisher,
+          p.supplier,
+          p.description,
+          p.year,
+          p.language,
+          p.product_type,
+          p.stock_quantity,
+          p.price,
+          p.weight,
+          p.size,
+          COALESCE(
+            (
+              SELECT STRING_AGG(c.category_name, ', ') 
+              FROM Category_Product cp
+              INNER JOIN Category c ON cp.category_id = c.category_id
+              WHERE cp.product_id = p.product_id
+            ),
+            N'Khác'
+          ) as categories
+        FROM Product p
+        WHERE p.product_id = @id
+      `;
+
+            const result = await pool.request()
+                .input('id', sql.Int, id)
+                .query(query);
+
+            if (result.recordset.length === 0) {
+                return null;
+            }
+
+            const product = result.recordset[0];
+
+            // Lấy tác giả
+            const authorsResult = await pool.request()
+                .input('id', sql.Int, id)
+                .query('SELECT author_name FROM Author_of_product WHERE product_id = @id');
+
+            product.authors = authorsResult.recordset.map(a => a.author_name);
+
+            // Lấy hình ảnh
+            const imagesResult = await pool.request()
+                .input('id', sql.Int, id)
+                .query('SELECT image_url, ordinal_number FROM Product_Image WHERE product_id = @id ORDER BY ordinal_number');
+
+            product.images = imagesResult.recordset.map(i => i.image_url);
+
+            return product;
+        } catch (error) {
+            throw error;
+        }
+    }
+
+    // Tạo sản phẩm mới (sử dụng stored procedure)
+    static async create(productData) {
+        try {
+            const pool = await db.getConnection();
+            const request = pool.request();
+
+            // Map tham số từ FE xuống SP
+            request.input('Title', sql.NVarChar, productData.title);
+            request.input('Publisher', sql.NVarChar, productData.publisher);
+            request.input('Supplier', sql.NVarChar, productData.supplier || null);
+            request.input('Description', sql.NVarChar, productData.description || null);
+            request.input('Year', sql.Int, productData.year || null);
+            request.input('Language', sql.NVarChar, productData.language || null);
+            request.input('ProductType', sql.NVarChar, productData.product_type || null);
+            request.input('StockQuantity', sql.Int, productData.stock_quantity);
+            request.input('Price', sql.Decimal(12, 2), productData.price);
+            request.input('Weight', sql.Decimal(10, 2), productData.weight || null);
+            request.input('Size', sql.VarChar(2), productData.size || null);
+
+            await request.execute('sp_InsertProduct');
+
+            return { message: 'Product created successfully' };
+        } catch (error) {
+            throw error;
+        }
+    }
+
+    // Cập nhật sản phẩm (sử dụng stored procedure)
+    static async update(id, productData) {
+        try {
+            const pool = await db.getConnection();
+            const request = pool.request();
+
+            request.input('ProductID', sql.Int, id);
+            request.input('Title', sql.NVarChar, productData.title);
+            request.input('Publisher', sql.NVarChar, productData.publisher);
+            request.input('Supplier', sql.NVarChar, productData.supplier || null);
+            request.input('Description', sql.NVarChar, productData.description || null);
+            request.input('Year', sql.Int, productData.year || null);
+            request.input('Language', sql.NVarChar, productData.language || null);
+            request.input('ProductType', sql.NVarChar, productData.product_type || null);
+            request.input('StockQuantity', sql.Int, productData.stock_quantity);
+            request.input('Price', sql.Decimal(12, 2), productData.price);
+            request.input('Weight', sql.Decimal(10, 2), productData.weight || null);
+            request.input('Size', sql.VarChar(2), productData.size || null);
+
+            await request.execute('sp_UpdateProduct');
+
+            return await this.getById(id);
+        } catch (error) {
+            throw error;
+        }
+    }
+
+    // Xóa sản phẩm (sử dụng stored procedure)
+    static async delete(id) {
+        try {
+            const pool = await db.getConnection();
+            const request = pool.request();
+
+            request.input('ProductID', sql.Int, id);
+            await request.execute('sp_DeleteProduct');
+
+            return true;
+        } catch (error) {
+            throw error;
+        }
+    }
+}
+
+module.exports = Product;
