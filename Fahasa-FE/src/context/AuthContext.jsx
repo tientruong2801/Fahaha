@@ -28,6 +28,7 @@ export const AuthProvider = ({ children }) => {
 
           // Kiểm tra token có hết hạn không
           const isExpired = decodedToken.exp * 1000 < Date.now();
+
           if (isExpired) {
             logout();
             return;
@@ -98,4 +99,10 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth phải được sử dụng trong AuthProvider");
+  }
+  return context;
+};

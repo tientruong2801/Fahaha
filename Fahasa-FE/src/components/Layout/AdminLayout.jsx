@@ -1,9 +1,11 @@
 // src/components/Layout/AdminLayout.jsx
 import React from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
 const AdminLayout = () => {
     const location = useLocation();
+    const { logout } = useAuth();
 
     return (
         <div className="flex min-h-screen flex-col bg-white text-slate-900 antialiased font-sans">
@@ -57,10 +59,11 @@ const AdminLayout = () => {
                         </div>
 
                         <Link
-                            to="/"
+                            to="/login"
                             onClick={() => {
                                 localStorage.removeItem('token');
                                 localStorage.removeItem('user');
+                                logout();
                             }}
                             className="px-4 py-2 text-sm font-semibold text-white bg-slate-800 rounded-full hover:bg-slate-700 transition-colors"
                             style={{ textDecoration: 'none' }}

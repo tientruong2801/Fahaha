@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
+import * as XLSX from 'xlsx';
 import reportApi from '../../api/reportApi';
 import categoryApi from '../../api/categoryApi';
 
@@ -131,17 +132,72 @@ const ReportPage = () => {
 
     const handleExportTopSelling = () => {
         if (topSellingData.length === 0) return;
-        const header = ["ID,Tên Sản Phẩm,Số Lượng Bán,Doanh Thu\n"];
-        const rows = topSellingData.map(item =>
-            `${item.product_id},"${item.title}",${item.TotalSold},${item.RevenueGenerated}`
-        );
-        const csvContent = "data:text/csv;charset=utf-8," + header + rows.join("\n");
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", "bao_cao_ban_chay.csv");
-        document.body.appendChild(link);
-        link.click();
+
+        // Chuẩn bị dữ liệu cho Excel
+        const worksheetData = [
+            ['ID', 'Tên Sản Phẩm', 'Số Lượng Bán', 'Doanh Thu'], // Header
+            ...topSellingData.map(item => [
+                item.product_id,
+                item.title,
+                item.TotalSold,
+                item.RevenueGenerated
+            ])
+        ];
+
+        // Tạo worksheet
+        const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+
+        // Đặt độ rộng cột
+        worksheet['!cols'] = [
+            { wch: 10 }, // ID
+            { wch: 40 }, // Tên Sản Phẩm
+            { wch: 15 }, // Số Lượng Bán
+            { wch: 15 }  // Doanh Thu
+        ];
+
+        // Tạo workbook
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Sản Phẩm Bán Chạy');
+
+        // Xuất file Excel
+        XLSX.writeFile(workbook, 'bao_cao_ban_chay.xlsx');
+    };
+
+    const handleExportRevenue = () => {
+        if (revenueData.length === 0) return;
+
+        // Chuẩn bị dữ liệu cho Excel
+        const worksheetData = [
+            ['Tháng', 'Tổng Đơn Hàng', 'Doanh Thu'], // Header
+            ...revenueData.map(item => [
+                `Tháng ${item.Month}`,
+                item.TotalOrders,
+                item.TotalRevenue
+            ]),
+            // Thêm dòng tổng
+            [
+                'TỔNG',
+                revenueData.reduce((sum, item) => sum + item.TotalOrders, 0),
+                revenueData.reduce((sum, item) => sum + parseFloat(item.TotalRevenue), 0)
+            ]
+        ];
+
+        // Tạo worksheet
+        const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+
+        // Đặt độ rộng cột
+        worksheet['!cols'] = [
+            { wch: 15 }, // Tháng
+            { wch: 15 }, // Tổng Đơn Hàng
+            { wch: 20 }  // Doanh Thu
+        ];
+
+        // Tạo workbook
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Doanh Thu Theo Tháng');
+
+        // Xuất file Excel
+        XLSX.writeFile(workbook, `bao_cao_doanh_thu_${revenueFilters.year}.xlsx`);
     };
 
     const tabs = [
@@ -331,51 +387,65 @@ const ReportPage = () => {
                                 <p>Đang tải dữ liệu...</p>
                             </div>
                         ) : revenueData.length > 0 ? (
-                            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                                <div className="overflow-x-auto">
-                                    <table className="w-full">
-                                        <thead className="bg-green-50 border-b border-slate-200">
-                                            <tr>
-                                                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase">Tháng</th>
-                                                <th className="px-6 py-3 text-center text-xs font-semibold text-slate-700 uppercase">Tổng Đơn Hàng</th>
-                                                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-700 uppercase">Doanh Thu</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-200">
-                                            {revenueData.map((item, index) => (
-                                                <tr key={index} className="hover:bg-slate-50 transition-colors">
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-900">
-                                                        Tháng {item.Month}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                                                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-blue-100 text-blue-700">
-                                                            {item.TotalOrders} đơn
+                            <>
+                                <div className="flex items-center justify-between mb-4">
+                                    <h2 className="text-lg font-semibold text-slate-900">
+                                        Kết quả báo cáo năm {revenueFilters.year}
+                                    </h2>
+                                    <button
+                                        onClick={handleExportRevenue}
+                                        disabled={revenueData.length === 0}
+                                        className="px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        <i className="fa-solid fa-file-excel mr-2"></i> Xuất Excel
+                                    </button>
+                                </div>
+                                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full">
+                                            <thead className="bg-green-50 border-b border-slate-200">
+                                                <tr>
+                                                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase">Tháng</th>
+                                                    <th className="px-6 py-3 text-center text-xs font-semibold text-slate-700 uppercase">Tổng Đơn Hàng</th>
+                                                    <th className="px-6 py-3 text-right text-xs font-semibold text-slate-700 uppercase">Doanh Thu</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-200">
+                                                {revenueData.map((item, index) => (
+                                                    <tr key={index} className="hover:bg-slate-50 transition-colors">
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-900">
+                                                            Tháng {item.Month}
+                                                        </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                                                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-blue-100 text-blue-700">
+                                                                {item.TotalOrders} đơn
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-bold text-green-600">
+                                                            {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.TotalRevenue)}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                            <tfoot className="bg-slate-50 border-t-2 border-slate-300">
+                                                <tr>
+                                                    <td className="px-6 py-4 text-sm font-bold text-slate-900">TỔNG</td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-blue-200 text-blue-900">
+                                                            {revenueData.reduce((sum, item) => sum + item.TotalOrders, 0)} đơn
                                                         </span>
                                                     </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-bold text-green-600">
-                                                        {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.TotalRevenue)}
+                                                    <td className="px-6 py-4 text-right text-sm font-bold text-green-700">
+                                                        {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
+                                                            revenueData.reduce((sum, item) => sum + parseFloat(item.TotalRevenue), 0)
+                                                        )}
                                                     </td>
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                        <tfoot className="bg-slate-50 border-t-2 border-slate-300">
-                                            <tr>
-                                                <td className="px-6 py-4 text-sm font-bold text-slate-900">TỔNG</td>
-                                                <td className="px-6 py-4 text-center">
-                                                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-blue-200 text-blue-900">
-                                                        {revenueData.reduce((sum, item) => sum + item.TotalOrders, 0)} đơn
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 text-right text-sm font-bold text-green-700">
-                                                    {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
-                                                        revenueData.reduce((sum, item) => sum + parseFloat(item.TotalRevenue), 0)
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        </tfoot>
-                                    </table>
+                                            </tfoot>
+                                        </table>
+                                    </div>
                                 </div>
-                            </div>
+                            </>
                         ) : (
                             <div className="text-center py-12 text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-200">
                                 <i className="fa-solid fa-chart-line text-4xl mb-3 text-slate-300"></i>

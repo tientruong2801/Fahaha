@@ -3,12 +3,14 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import SearchBar from './SearchBar';
 import cartApi from '../../api/cartApi';
+import { useAuth } from '../../context/AuthContext';
 
 const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [cartCount, setCartCount] = useState(0);
+  const { logout } = useAuth();
 
   // Kiểm tra xem đang ở trang nào để highlight menu
   const isActive = (path) => location.pathname.startsWith(path);
@@ -50,6 +52,7 @@ const Navbar = () => {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    logout(); // Cập nhật state ở AuthContext nếu cần
     navigate('/login');
   };
 

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import authApi from '../../api/authApi';
+import { useAuth } from '../../context/AuthContext';
 
 const LoginPage = () => {
   const navigate = useNavigate();
+  const { login } = useAuth(); // Sử dụng login từ AuthContext
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -16,21 +17,12 @@ const LoginPage = () => {
     setIsLoading(true);
 
     try {
-      // Gọi API đăng nhập
-      const response = await authApi.login({ email, password });
+      // Gọi hàm login từ AuthContext (nó sẽ tự động cập nhật state)
+      const user = await login(email, password);
 
-      // Lấy dữ liệu từ response
-      const data = response.data?.data || response.data;
-
-      if (data && data.token && data.user) {
-        // Lưu token vào localStorage
-        localStorage.setItem('token', data.token);
-
-        // Lưu thông tin user vào localStorage
-        localStorage.setItem('user', JSON.stringify(data.user));
-
+      if (user) {
         // Điều hướng dựa theo role
-        if (data.user.role === 'admin' || data.user.is_admin) {
+        if (user.role === 'admin' || user.is_admin) {
           // Admin -> trang quản lý sản phẩm
           navigate('/admin/products');
         } else {
@@ -45,9 +37,7 @@ const LoginPage = () => {
       console.error('Login error:', err);
 
       // Xử lý lỗi từ server
-      const errorMessage = err.response?.data?.message
-        || err.response?.data?.error
-        || 'Email hoặc mật khẩu không đúng. Vui lòng thử lại!';
+      const errorMessage = err.message || 'Email hoặc mật khẩu không đúng. Vui lòng thử lại!';
 
       setError(errorMessage);
     } finally {

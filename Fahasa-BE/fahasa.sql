@@ -836,212 +836,6 @@ BEGIN
 END;
 GO
 
-
------2.2.1. Trigger kiểm tra ràng buộc ngữ nghĩa------
-------Mô tả: Trigger này dùng để kiểm tra ràng buộc khách hàng chỉ được phép đánh giá sản phẩm khi họ đã mua nó và đơn hàng đã hoàn tất-------
-IF OBJECT_ID('trg_CheckReview_Cursor', 'TR') IS NOT NULL
-    DROP TRIGGER trg_CheckReview_Cursor;
-GO
-
-CREATE OR ALTER TRIGGER check_ProductReview
-ON ProductReview 
-AFTER INSERT, UPDATE
-AS
-BEGIN
-    DECLARE @customerID INT;
-    DECLARE @ProductID INT;
-
-    DECLARE cur1 CURSOR FOR 
-    SELECT customer_id, product_id
-    FROM INSERTED
-
-    OPEN cur1
-    FETCH NEXT FROM cur1 INTO @customerID, @ProductID
-
-    WHILE @@FETCH_STATUS = 0 
-    BEGIN
-        IF NOT EXISTS (
-            SELECT 1
-        FROM Orders o
-            JOIN Payment p ON o.payment_id = p.payment_id
-            JOIN Order_Product op ON o.order_id = op.order_id
-        WHERE p.customer_id = @customerID AND op.product_id = @productID AND o.status = 'Completed'
-        )
-        BEGIN
-            DECLARE @Message VARCHAR(255)
-            SET @Message = N'Error: Customer ' + CAST(@customerID AS VARCHAR) + N' has not purchased the product ' + CAST(@productID AS VARCHAR) + N' or this order has not completed yet.'
-            RAISERROR(@Message, 16, 1)
-            ROLLBACK TRANSACTION
-
-            CLOSE cur1
-            DEALLOCATE cur1
-            RETURN
-        END
-        FETCH NEXT FROM cur1 INTO @customerID, @productID
-    END
-    CLOSE cur1
-    DEALLOCATE cur1
-END
-
-
-IF OBJECT_ID('sp_GetMonthlyRevenue', 'P') IS NOT NULL
-    DROP PROCEDURE sp_GetMonthlyRevenue;
-GO
-
-CREATE PROCEDURE sp_GetMonthlyRevenue
-    @Year INT
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    SELECT 
-        MONTH(created_date) as [Month],
-        COUNT(order_id) as [TotalOrders],
-        SUM(total) as [TotalRevenue]
-    FROM Orders
-    WHERE YEAR(created_date) = @Year 
-      AND status IN ('Completed', 'Paid')
-    GROUP BY MONTH(created_date)
-    ORDER BY [Month];
-END;
-GO
-
-
-IF OBJECT_ID('sp_GetTopSellingProducts', 'P') IS NOT NULL
-    DROP PROCEDURE sp_GetTopSellingProducts;
-GO
-
-CREATE PROCEDURE sp_GetTopSellingProducts
-    @TopN INT = 5,
-    @Month INT = NULL,
-    @Year INT = NULL,
-    @MinQuantity INT = 1 
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    SELECT TOP (@TopN)
-        p.product_id,
-        p.title,
-        SUM(op.quantity) as [TotalSold],
-        SUM(op.quantity * p.price) as [RevenueGenerated]
-    FROM Product p                                      -- Bảng 1
-    JOIN Order_Product op ON p.product_id = op.product_id -- Bảng 2 (Liên kết)
-    JOIN Orders o ON op.order_id = o.order_id           -- Bảng 3 (Liên kết)
-    
-    -- 1. WHERE: Lọc dữ liệu đầu vào (Thời gian, trạng thái)
-    WHERE o.status IN ('Completed', 'Paid')
-      AND (@Month IS NULL OR MONTH(o.created_date) = @Month)
-      AND (@Year IS NULL OR YEAR(o.created_date) = @Year)
-    
-    -- 2. GROUP BY: Gom nhóm theo sản phẩm
-    GROUP BY p.product_id, p.title, p.price
-    
-    -- 3. HAVING: Lọc SAU khi gom nhóm (Yêu cầu bắt buộc)
-    -- Chỉ lấy những nhóm sản phẩm có tổng số lượng bán >= @MinQuantity
-    HAVING SUM(op.quantity) >= @MinQuantity
-    
-    -- 4. ORDER BY: Sắp xếp giảm dần
-    ORDER BY [TotalSold] DESC;
-END;
-GO
--- Tìm top 5 sản phẩm bán chạy tháng 11/2024
--- Điều kiện: Tổng số lượng bán phải >= 2 cuốn (HAVING sẽ hoạt động ở đây)
-EXEC sp_GetTopSellingProducts 
-    @TopN = 5, 
-    @Month = 11, 
-    @Year = 2024,
-    @MinQuantity = 2;
-
-
-
--- TÍNH TỔNG TIỀN KHÁCH ĐÃ CHI TIÊU 
--- duyệt qua từng đơn hàng 'completed' của khách để cộng dồn tiền
-CREATE OR ALTER FUNCTION fn_CalcTotalSpending
-    (@CustomerID INT)
-RETURNS DECIMAL(12,2)
-AS
-BEGIN
-    DECLARE @TotalSpending DECIMAL(12,2) = 0;
-    DECLARE @OrderTotal DECIMAL(12,2);
-    
-    -- kiểm tra tham số đầu vào
-    IF NOT EXISTS (SELECT 1 FROM Customer WHERE user_id = @CustomerID)
-        RETURN 0; -- trả về 0 nếu khách không tồn tại
-
-    DECLARE cur_Orders CURSOR FOR
-        SELECT O.total 
-        FROM Orders O
-        JOIN Payment P ON O.payment_id = P.payment_id
-        WHERE P.customer_id = @CustomerID 
-          AND O.status = 'completed'; -- chỉ tính đơn thành công
-
-    -- duyệt
-    OPEN cur_Orders;
-    FETCH NEXT FROM cur_Orders INTO @OrderTotal;
-
-    -- dùng loop tính tổng
-    WHILE @@FETCH_STATUS = 0
-    BEGIN
-        SET @TotalSpending = @TotalSpending + @OrderTotal;
-        FETCH NEXT FROM cur_Orders INTO @OrderTotal;
-    END
-
-    -- dọn dẹp
-    CLOSE cur_Orders;
-    DEALLOCATE cur_Orders;
-
-    RETURN @TotalSpending;
-END;
-GO
-
-
--- TÍNH CHI PHÍ NHẬP HÀNG BỔ SUNG 
--- duyệt từng sách trong danh mục, nếu tồn kho < ngưỡng thì tính tiền nhập thêm cho đủ 50 cuốn
-CREATE OR ALTER FUNCTION fn_CalcRestockCost
-    (@CategoryID INT, @MinStockThreshold INT)
-RETURNS DECIMAL(15,2)
-AS
-BEGIN
-    DECLARE @TotalCost DECIMAL(15,2) = 0;
-    DECLARE @CurrentStock INT;
-    DECLARE @ImportPrice DECIMAL(12,2);
-    DECLARE @TargetStock INT = 50; -- định mức kho an toàn
-
-    -- check tham số đầu vào
-    IF NOT EXISTS (SELECT 1 FROM Category WHERE category_id = @CategoryID)
-        RETURN -1; -- trả về -1 để báo lỗi danh mục không tồn tại
-
-    DECLARE cur_Products CURSOR FOR
-        SELECT P.stock_quantity, P.price
-        FROM Product P
-        JOIN Category_Product CP ON P.product_id = CP.product_id
-        WHERE CP.category_id = @CategoryID;
-
-    -- duyệt
-    OPEN cur_Products;
-    FETCH NEXT FROM cur_Products INTO @CurrentStock, @ImportPrice;
-
-    -- loop
-    WHILE @@FETCH_STATUS = 0
-    BEGIN
-        --chỉ nhập hàng nếu tồn kho dưới ngưỡng
-        IF @CurrentStock < @MinStockThreshold
-        BEGIN
-            -- giả sử giá nhập = 70% giá bán
-            SET @TotalCost = @TotalCost + ((@TargetStock - @CurrentStock) * (@ImportPrice * 0.7));
-        END
-
-        FETCH NEXT FROM cur_Products INTO @CurrentStock, @ImportPrice;
-    END
-
-    CLOSE cur_Products;
-    DEALLOCATE cur_Products;
-
-    RETURN @TotalCost;
-END;
-GO
-
 -- Thủ tục thêm, sửa, xóa cho bảng Users
 
 -- INSERT User
@@ -1251,3 +1045,210 @@ BEGIN
     PRINT N'Người dùng đã được xóa thành công.';
 END;
 GO
+
+
+-----2.2.1. Trigger kiểm tra ràng buộc ngữ nghĩa------
+------Mô tả: Trigger này dùng để kiểm tra ràng buộc khách hàng chỉ được phép đánh giá sản phẩm khi họ đã mua nó và đơn hàng đã hoàn tất-------
+IF OBJECT_ID('trg_CheckReview_Cursor', 'TR') IS NOT NULL
+    DROP TRIGGER trg_CheckReview_Cursor;
+GO
+
+CREATE OR ALTER TRIGGER check_ProductReview
+ON ProductReview 
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    DECLARE @customerID INT;
+    DECLARE @ProductID INT;
+
+    DECLARE cur1 CURSOR FOR 
+    SELECT customer_id, product_id
+    FROM INSERTED
+
+    OPEN cur1
+    FETCH NEXT FROM cur1 INTO @customerID, @ProductID
+
+    WHILE @@FETCH_STATUS = 0 
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1
+        FROM Orders o
+            JOIN Payment p ON o.payment_id = p.payment_id
+            JOIN Order_Product op ON o.order_id = op.order_id
+        WHERE p.customer_id = @customerID AND op.product_id = @productID AND o.status = 'Completed'
+        )
+        BEGIN
+            DECLARE @Message VARCHAR(255)
+            SET @Message = N'Error: Customer ' + CAST(@customerID AS VARCHAR) + N' has not purchased the product ' + CAST(@productID AS VARCHAR) + N' or this order has not completed yet.'
+            RAISERROR(@Message, 16, 1)
+            ROLLBACK TRANSACTION
+
+            CLOSE cur1
+            DEALLOCATE cur1
+            RETURN
+        END
+        FETCH NEXT FROM cur1 INTO @customerID, @productID
+    END
+    CLOSE cur1
+    DEALLOCATE cur1
+END
+
+
+IF OBJECT_ID('sp_GetMonthlyRevenue', 'P') IS NOT NULL
+    DROP PROCEDURE sp_GetMonthlyRevenue;
+GO
+
+CREATE PROCEDURE sp_GetMonthlyRevenue
+    @Year INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+        MONTH(created_date) as [Month],
+        COUNT(order_id) as [TotalOrders],
+        SUM(total) as [TotalRevenue]
+    FROM Orders
+    WHERE YEAR(created_date) = @Year 
+      AND status IN ('Completed', 'Paid')
+    GROUP BY MONTH(created_date)
+    ORDER BY [Month];
+END;
+GO
+
+
+IF OBJECT_ID('sp_GetTopSellingProducts', 'P') IS NOT NULL
+    DROP PROCEDURE sp_GetTopSellingProducts;
+GO
+
+CREATE PROCEDURE sp_GetTopSellingProducts
+    @TopN INT = 5,
+    @Month INT = NULL,
+    @Year INT = NULL,
+    @MinQuantity INT = 1 
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT TOP (@TopN)
+        p.product_id,
+        p.title,
+        SUM(op.quantity) as [TotalSold],
+        SUM(op.quantity * p.price) as [RevenueGenerated]
+    FROM Product p                                      -- Bảng 1
+    JOIN Order_Product op ON p.product_id = op.product_id -- Bảng 2 (Liên kết)
+    JOIN Orders o ON op.order_id = o.order_id           -- Bảng 3 (Liên kết)
+    
+    -- 1. WHERE: Lọc dữ liệu đầu vào (Thời gian, trạng thái)
+    WHERE o.status IN ('Completed', 'Paid')
+      AND (@Month IS NULL OR MONTH(o.created_date) = @Month)
+      AND (@Year IS NULL OR YEAR(o.created_date) = @Year)
+    
+    -- 2. GROUP BY: Gom nhóm theo sản phẩm
+    GROUP BY p.product_id, p.title, p.price
+    
+    -- 3. HAVING: Lọc SAU khi gom nhóm (Yêu cầu bắt buộc)
+    -- Chỉ lấy những nhóm sản phẩm có tổng số lượng bán >= @MinQuantity
+    HAVING SUM(op.quantity) >= @MinQuantity
+    
+    -- 4. ORDER BY: Sắp xếp giảm dần
+    ORDER BY [TotalSold] DESC;
+END;
+GO
+-- Tìm top 5 sản phẩm bán chạy tháng 11/2024
+-- Điều kiện: Tổng số lượng bán phải >= 2 cuốn (HAVING sẽ hoạt động ở đây)
+EXEC sp_GetTopSellingProducts 
+    @TopN = 5, 
+    @Month = 11, 
+    @Year = 2024,
+    @MinQuantity = 2;
+
+
+
+-- TÍNH TỔNG TIỀN KHÁCH ĐÃ CHI TIÊU 
+-- duyệt qua từng đơn hàng 'completed' của khách để cộng dồn tiền
+CREATE OR ALTER FUNCTION fn_CalcTotalSpending
+    (@CustomerID INT)
+RETURNS DECIMAL(12,2)
+AS
+BEGIN
+    DECLARE @TotalSpending DECIMAL(12,2) = 0;
+    DECLARE @OrderTotal DECIMAL(12,2);
+    
+    -- kiểm tra tham số đầu vào
+    IF NOT EXISTS (SELECT 1 FROM Customer WHERE user_id = @CustomerID)
+        RETURN 0; -- trả về 0 nếu khách không tồn tại
+
+    DECLARE cur_Orders CURSOR FOR
+        SELECT O.total 
+        FROM Orders O
+        JOIN Payment P ON O.payment_id = P.payment_id
+        WHERE P.customer_id = @CustomerID 
+          AND O.status = 'completed'; -- chỉ tính đơn thành công
+
+    -- duyệt
+    OPEN cur_Orders;
+    FETCH NEXT FROM cur_Orders INTO @OrderTotal;
+
+    -- dùng loop tính tổng
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        SET @TotalSpending = @TotalSpending + @OrderTotal;
+        FETCH NEXT FROM cur_Orders INTO @OrderTotal;
+    END
+
+    -- dọn dẹp
+    CLOSE cur_Orders;
+    DEALLOCATE cur_Orders;
+
+    RETURN @TotalSpending;
+END;
+GO
+
+
+-- TÍNH CHI PHÍ NHẬP HÀNG BỔ SUNG 
+-- duyệt từng sách trong danh mục, nếu tồn kho < ngưỡng thì tính tiền nhập thêm cho đủ 50 cuốn
+CREATE OR ALTER FUNCTION fn_CalcRestockCost
+    (@CategoryID INT, @MinStockThreshold INT)
+RETURNS DECIMAL(15,2)
+AS
+BEGIN
+    DECLARE @TotalCost DECIMAL(15,2) = 0;
+    DECLARE @CurrentStock INT;
+    DECLARE @ImportPrice DECIMAL(12,2);
+    DECLARE @TargetStock INT = 50; -- định mức kho an toàn
+
+    -- check tham số đầu vào
+    IF NOT EXISTS (SELECT 1 FROM Category WHERE category_id = @CategoryID)
+        RETURN -1; -- trả về -1 để báo lỗi danh mục không tồn tại
+
+    DECLARE cur_Products CURSOR FOR
+        SELECT P.stock_quantity, P.price
+        FROM Product P
+        JOIN Category_Product CP ON P.product_id = CP.product_id
+        WHERE CP.category_id = @CategoryID;
+
+    -- duyệt
+    OPEN cur_Products;
+    FETCH NEXT FROM cur_Products INTO @CurrentStock, @ImportPrice;
+
+    -- loop
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        --chỉ nhập hàng nếu tồn kho dưới ngưỡng
+        IF @CurrentStock < @MinStockThreshold
+        BEGIN
+            -- giả sử giá nhập = 70% giá bán
+            SET @TotalCost = @TotalCost + ((@TargetStock - @CurrentStock) * (@ImportPrice * 0.7));
+        END
+
+        FETCH NEXT FROM cur_Products INTO @CurrentStock, @ImportPrice;
+    END
+
+    CLOSE cur_Products;
+    DEALLOCATE cur_Products;
+
+    RETURN @TotalCost;
+END;
+GO
+
