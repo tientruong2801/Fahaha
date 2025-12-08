@@ -6,7 +6,7 @@ class CartController {
     static async getCart(req, res) {
         try {
             // Get userId from authenticated user or default to 101
-            const userId = (req.user && req.user.userId) || req.query.userId || 101;
+            const userId = (req.user && req.user.user_id) || req.query.userId || 101;
 
             const result = await CartService.getCart(userId);
             return response.success(res, result.data, 'Cart retrieved successfully');
@@ -19,7 +19,7 @@ class CartController {
     // Add product to cart
     static async addToCart(req, res) {
         try {
-            const userId = (req.user && req.user.userId) || req.body.userId || 101;
+            const userId = (req.user && req.user.user_id) || req.body.userId || 101;
             const { productId, quantity } = req.body;
 
             console.log('📦 Add to cart request:', { userId, productId, quantity });
@@ -59,8 +59,8 @@ class CartController {
 
             // Safe userId extraction
             let userId = 101; // default
-            if (req.user && typeof req.user === 'object' && req.user.userId) {
-                userId = req.user.userId;
+            if (req.user && typeof req.user === 'object' && req.user.user_id) {
+                userId = req.user.user_id;
             } else if (req.body && req.body.userId) {
                 userId = req.body.userId;
             } else if (req.query && req.query.userId) {
@@ -87,7 +87,7 @@ class CartController {
         try {
             const { productId } = req.params;
             const { quantity } = req.body;
-            const userId = (req.user && req.user.userId) || req.body.userId || 101;
+            const userId = (req.user && req.user.user_id) || req.body.userId || 101;
 
             if (!productId || quantity === undefined) {
                 return response.error(res, 'productId and quantity are required', 400);
@@ -109,7 +109,7 @@ class CartController {
     // Clear cart
     static async clearCart(req, res) {
         try {
-            const userId = (req.user && req.user.userId) || req.body.userId || req.query.userId || 101;
+            const userId = (req.user && req.user.user_id) || req.body.userId || req.query.userId || 101;
 
             const result = await CartService.clearCart(userId);
             return response.success(res, null, result.message);

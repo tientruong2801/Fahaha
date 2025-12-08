@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import productApi from '../../api/productApi';
 import cartApi from '../../api/cartApi';
+import { useAuth } from '../../context/AuthContext';
 
 const ProductDetail = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const { isLoggedIn } = useAuth();
   const [product, setProduct] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -48,6 +51,12 @@ const ProductDetail = () => {
 
   // Handle add to cart
   const handleAddToCart = async () => {
+    if (!isLoggedIn) {
+      toast.warning("Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng!");
+      navigate('/login');
+      return;
+    }
+
     if (!product) return;
 
     if (quantity > product.stock_quantity) {

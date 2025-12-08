@@ -75,9 +75,10 @@ function App() {
         autoClose={3000}
         hideProgressBar={false}
         closeOnClick
-        pauseOnHover
+        pauseOnHover={false}
         draggable
         theme="colored"
+        closeButton={true}
       />
     </AuthProvider>
   );

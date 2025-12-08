@@ -40,14 +40,24 @@
 // export default BookCard;
 
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import cartApi from '../../api/cartApi';
+import { useAuth } from '../../context/AuthContext';
 
 const BookCard = ({ product }) => {
+  const navigate = useNavigate();
+  const { isLoggedIn } = useAuth();
+
   // Handle add to cart
   const handleAddToCart = async (e) => {
     e.preventDefault(); // Prevent navigation
+
+    if (!isLoggedIn) {
+      toast.warning("Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng!");
+      navigate('/login');
+      return;
+    }
 
     // Check stock - use stock_quantity from backend or quantity as fallback
     const currentStock = product.stock_quantity !== undefined ? product.stock_quantity : (product.quantity !== undefined ? product.quantity : 10);

@@ -5,7 +5,7 @@ class OrderController {
     // Create order from cart
     static async createOrder(req, res) {
         try {
-            const userId = (req.user && req.user.userId) || req.body.userId || 101;
+            const userId = (req.user && req.user.user_id) || req.body.userId || 101;
             const orderData = {
                 payment_method: req.body.payment_method || 'COD',
                 shipping_fee: req.body.shipping_fee,
@@ -31,7 +31,7 @@ class OrderController {
     // Get order by ID
     static async getOrderById(req, res) {
         try {
-            const userId = (req.user && req.user.userId) || req.query.userId || 101;
+            const userId = (req.user && req.user.user_id) || req.query.userId || 101;
             const orderId = parseInt(req.params.orderId);
 
             if (!orderId) {
@@ -54,7 +54,7 @@ class OrderController {
     // Get all orders for customer
     static async getOrders(req, res) {
         try {
-            const userId = (req.user && req.user.userId) || req.query.userId || 101;
+            const userId = (req.user && req.user.user_id) || req.query.userId || 101;
 
             const result = await OrderService.getOrders(userId);
 
@@ -68,7 +68,7 @@ class OrderController {
     // Cancel order
     static async cancelOrder(req, res) {
         try {
-            const userId = (req.user && req.user.userId) || (req.body && req.body.userId) || 101;
+            const userId = (req.user && req.user.user_id) || (req.body && req.body.userId) || 101;
             const orderId = parseInt(req.params.orderId);
 
             if (!orderId) {
