@@ -14,11 +14,11 @@ class CartModel {
           p.price,
           p.stock_quantity,
           cp.quantity,
-          (SELECT TOP 1 image_url FROM Product_Image WHERE product_id = p.product_id) as image_url,
-          (SELECT TOP 1 c.category_name 
+          (SELECT image_url FROM Product_Image WHERE product_id = p.product_id FETCH FIRST 1 ROWS ONLY) as image_url,
+          (SELECT c.category_name 
            FROM Category_Product cat_p 
            INNER JOIN Category c ON cat_p.category_id = c.category_id 
-           WHERE cat_p.product_id = p.product_id) as category_name
+           WHERE cat_p.product_id = p.product_id FETCH FIRST 1 ROWS ONLY) as category_name
         FROM Cart c
         INNER JOIN Cart_Product cp ON c.cart_id = cp.cart_id
         INNER JOIN Product p ON cp.product_id = p.product_id
@@ -44,13 +44,13 @@ class CartModel {
         const timestamp = Date.now().toString().substring(5); // Last 8 digits
         const random = Math.random().toString(36).substring(2, 7); // 5 chars
         const newCartId = `C${userId}-${timestamp}${random}`.substring(0, 20);
-        result = await pool.request()
+        await pool.request()
             .input('cart_id', sql.NVarChar(20), newCartId)
             .input('customer_id', sql.Int, userId)
             .input('quantity', sql.Int, 0)
-            .query('INSERT INTO Cart (cart_id, customer_id, quantity) OUTPUT INSERTED.cart_id VALUES (@cart_id, @customer_id, @quantity)');
+            .query('INSERT INTO Cart (cart_id, customer_id, quantity) VALUES (@cart_id, @customer_id, @quantity)');
 
-        return result.recordset[0].cart_id;
+        return newCartId;
     }
 
     // Add product to cart

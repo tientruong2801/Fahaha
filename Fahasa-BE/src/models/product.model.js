@@ -36,15 +36,16 @@ class Product {
           p.stock_quantity,
           p.price,
           p.weight,
-          p.size,
+          p."SIZE" as size,
+          (SELECT image_url FROM Product_Image WHERE product_id = p.product_id ORDER BY ordinal_number FETCH FIRST 1 ROWS ONLY) as image_url,
           COALESCE(
             (
-              SELECT STRING_AGG(c.category_name, ', ') 
+              SELECT LISTAGG(c.category_name, ', ') WITHIN GROUP (ORDER BY c.category_name)
               FROM Category_Product cp
               INNER JOIN Category c ON cp.category_id = c.category_id
               WHERE cp.product_id = p.product_id
             ),
-            N'Khác'
+            'Khác'
           ) as categories
         FROM Product p
       `;
@@ -150,15 +151,15 @@ class Product {
           p.stock_quantity,
           p.price,
           p.weight,
-          p.size,
+          p."SIZE" as size,
           COALESCE(
             (
-              SELECT STRING_AGG(c.category_name, ', ') 
+              SELECT LISTAGG(c.category_name, ', ') WITHIN GROUP (ORDER BY c.category_name)
               FROM Category_Product cp
               INNER JOIN Category c ON cp.category_id = c.category_id
               WHERE cp.product_id = p.product_id
             ),
-            N'Khác'
+            'Khác'
           ) as categories
         FROM Product p
         WHERE p.product_id = @id
@@ -187,6 +188,7 @@ class Product {
                 .query('SELECT image_url, ordinal_number FROM Product_Image WHERE product_id = @id ORDER BY ordinal_number');
 
             product.images = imagesResult.recordset.map(i => i.image_url);
+            product.image_url = product.images[0] || null;
 
             return product;
         } catch (error) {

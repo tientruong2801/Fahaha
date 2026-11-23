@@ -1,4 +1,4 @@
-﻿USE master;
+USE master;
 GO
 
 IF NOT EXISTS (SELECT *
@@ -522,17 +522,16 @@ VALUES
 INSERT INTO Product_Image
     (product_id, image_url, ordinal_number, upload_date)
 VALUES
-    (1, 'image_url/product1/main1.jpg', 1, '2023-01-01 10:00:00'),
-    (1, 'image_url/product1/back1.jpg', 2, '2023-01-01 10:00:00'),
-    (2, 'image_url/product2/main2.jpg', 1, '2023-01-05 10:00:00'),
-    (3, 'image_url/product3/main3.jpg', 1, '2023-02-01 10:00:00'),
-    (4, 'image_url/product4/main4.jpg', 1, '2023-03-01 10:00:00'),
-    (5, 'image_url/product5/main5.jpg', 1, '2023-04-01 10:00:00'),
-    (6, 'image_url/product6/main6.jpg', 1, '2024-05-10 10:00:00'),
-    (7, 'image_url/product7/main7.jpg', 1, '2024-05-15 10:00:00'),
-    (8, 'image_url/product8/main8.jpg', 1, '2024-06-01 10:00:00'),
-    (9, 'image_url/product9/main9.jpg', 1, '2024-06-15 10:00:00'),
-    (10, 'image_url/product10/main10.jpg', 1, '2024-07-01 10:00:00');
+    (1, 'https://cdn1.fahasa.com/media/catalog/product/d/n/dntttttuntitled.jpg', 1, '2023-01-01 10:00:00'),
+    (2, 'https://salt.tikicdn.com/cache/w300/ts/product/94/f3/02/6f7d976eb70207763f546caa740112d6.png', 1, '2023-01-05 10:00:00'),
+    (3, 'https://salt.tikicdn.com/cache/w300/ts/product/cb/89/63/8c2dd3bea7ea38c1a7953ef69f317425.jpg', 1, '2023-02-01 10:00:00'),
+    (4, 'https://cdn1.fahasa.com/media/catalog/product/k/e/ke-toan-bang-hinh-anh-bia-1.jpg', 1, '2023-03-01 10:00:00'),
+    (5, 'https://salt.tikicdn.com/cache/w300/ts/product/50/fa/10/47694066a36e51763671ce34f9d04a2f.jpg', 1, '2023-04-01 10:00:00'),
+    (6, 'https://cdn1.fahasa.com/media/catalog/product/s/a/sach-hoc-tieng-anh-cap-toc---tap-1.jpg', 1, '2024-05-10 10:00:00'),
+    (7, 'https://salt.tikicdn.com/cache/w300/ts/product/11/d0/1a/7a59eae47d7c2de1557410b306d0c71a.png', 1, '2024-05-15 10:00:00'),
+    (8, 'https://salt.tikicdn.com/cache/550x550/media/catalog/product/product/83/23/b7/14a42ae4f66c9b8b298aaef4b9671442.jpg', 1, '2024-06-01 10:00:00'),
+    (9, 'https://cdn1.fahasa.com/media/catalog/product/i/m/image_80104.jpg', 1, '2024-06-15 10:00:00'),
+    (10, 'https://cdn1.fahasa.com/media/catalog/product/l/i/lich-su-viet-nam.jpg', 1, '2024-07-01 10:00:00');
 
 -- 17 -- FLASH SALE     
 INSERT INTO FlashSale
@@ -839,8 +838,8 @@ GO
 -- Thủ tục thêm, sửa, xóa cho bảng Users
 
 -- INSERT User
-IF OBJECT_ID('sp_InsertUser', 'P') IS NOT NULL
-    DROP PROCEDURE sp_InsertUser;
+IF OBJECT_ID('sp_RegisterUser', 'P') IS NOT NULL
+    DROP PROCEDURE sp_RegisterUser;
 GO
 
 CREATE PROCEDURE sp_RegisterUser
@@ -1167,6 +1166,7 @@ EXEC sp_GetTopSellingProducts
 
 -- TÍNH TỔNG TIỀN KHÁCH ĐÃ CHI TIÊU 
 -- duyệt qua từng đơn hàng 'completed' của khách để cộng dồn tiền
+GO
 CREATE OR ALTER FUNCTION fn_CalcTotalSpending
     (@CustomerID INT)
 RETURNS DECIMAL(12,2)
@@ -1208,6 +1208,7 @@ GO
 
 -- TÍNH CHI PHÍ NHẬP HÀNG BỔ SUNG 
 -- duyệt từng sách trong danh mục, nếu tồn kho < ngưỡng thì tính tiền nhập thêm cho đủ 50 cuốn
+GO
 CREATE OR ALTER FUNCTION fn_CalcRestockCost
     (@CategoryID INT, @MinStockThreshold INT)
 RETURNS DECIMAL(15,2)

@@ -10,15 +10,14 @@ const PORT = process.env.PORT || 3000;
 const testConnection = async () => {
   try {
     const pool = await getConnection();
-    const result = await pool.request().query('SELECT 1 as test');
+    const result = await pool.request().query('SELECT 1 as test FROM dual');
     console.log('✅ Test query thành công:', result.recordset);
     return true;
   } catch (err) {
     console.error('❌ Không thể kết nối đến database:', err.message);
     console.error('💡 Hãy kiểm tra:');
-    console.error('   - SQL Server đang chạy?');
-    console.error('   - Database "fahasa" đã được tạo?');
-    console.error('   - Cấu hình kết nối đúng?');
+    console.error('   - Oracle Container đang chạy?');
+    console.error('   - Thông tin kết nối trong .env đúng?');
     return false;
   }
 };

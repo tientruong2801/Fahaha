@@ -1,0 +1,30 @@
+name: fahaha-dbms
+services:
+  oracle:
+    image: gvenzl/oracle-free:23.26.3-slim-faststart
+    environment:
+      ORACLE_RANDOM_PASSWORD: "yes"
+      APP_USER: fahaha
+      APP_USER_PASSWORD: ${FAHAHA_ORACLE_PASSWORD:?Set FAHAHA_ORACLE_PASSWORD}
+    ports:
+      - "127.0.0.1:1521:1521"
+    volumes:
+      - oracle_data_23263:/opt/oracle/oradata
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 15s
+      timeout: 10s
+      retries: 40
+      start_period: 60s
+  neo4j:
+    image: neo4j:5.26-community
+    environment:
+      NEO4J_AUTH: neo4j/${FAHAHA_NEO4J_PASSWORD:?Set FAHAHA_NEO4J_PASSWORD}
+    ports:
+      - "127.0.0.1:7474:7474"
+      - "127.0.0.1:7687:7687"
+    volumes:
+      - neo4j_data:/data
+volumes:
+  oracle_data_23263:
+  neo4j_data:
